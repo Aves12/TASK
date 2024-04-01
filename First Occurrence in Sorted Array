@@ -1,0 +1,10 @@
+fn first_occurrence(arr: &[i32], target: i32) -> Option<usize> {
+    arr.iter().position(|&x| x == target)
+}
+
+// Example usage:
+fn main() {
+    let sorted_array = vec![1, 2, 3, 4, 4, 5, 6];
+    let target_number = 4;
+    println!("First occurrence of {} is at index {:?}", target_number, first_occurrence(&sorted_array, target_number));
+}
