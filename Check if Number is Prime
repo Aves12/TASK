@@ -1,0 +1,17 @@
+fn is_prime(n: u64) -> bool {
+    if n <= 1 {
+        return false;
+    }
+    for i in 2..=n / 2 {
+        if n % i == 0 {
+            return false;
+        }
+    }
+    true
+}
+
+// Example usage:
+fn main() {
+    let number = 29;
+    println!("Is {} a prime number? {}", number, is_prime(number));
+}
