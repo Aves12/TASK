@@ -1,0 +1,9 @@
+fn reverse_string(s: &str) -> String {
+    s.chars().rev().collect()
+}
+
+// Example usage:
+fn main() {
+    let test_string = "hello";
+    println!("Reversed string: {}", reverse_string(test_string));
+}
