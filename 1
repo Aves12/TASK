@@ -1,0 +1,9 @@
+fn is_palindrome(s: &str) -> bool {
+    s.chars().eq(s.chars().rev())
+}
+
+// Example usage:
+fn main() {
+    let test_string = "racecar";
+    println!("Is '{}' a palindrome? {}", test_string, is_palindrome(test_string));
+}
