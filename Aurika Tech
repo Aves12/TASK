@@ -1,0 +1,151 @@
+
+
+#First, make sure you have the necessary libraries installed:
+#pip install reportlab pillow num2words
+
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph
+from reportlab.pdfgen import canvas
+from PIL import Image as PILImage
+from num2words import num2words
+import io
+
+def generate_invoice(data):
+    # Create PDF document
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=20)
+    elements = []
+
+    # Add company logo
+    if data.get('company_logo'):
+        logo = PILImage.open(data['company_logo'])
+        logo_io = io.BytesIO()
+        logo.save(logo_io, format='PNG')
+        logo_io.seek(0)
+        elements.append(Image(logo_io, width=50*mm, height=30*mm))
+    
+    # Title and Invoice Information
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
+    elements.append(Paragraph("Tax Invoice", styles['Title']))
+    elements.append(Paragraph("Invoice", styles['Center']))
+    
+    # Seller Details and Invoice Information
+    elements.append(Paragraph(f"<b>Seller Details:</b> {data['seller_name']}<br/>"
+                              f"{data['seller_address']}<br/>"
+                              f"{data['seller_city']}, {data['seller_state']} - {data['seller_pincode']}<br/>"
+                              f"PAN No.: {data['seller_pan']}<br/>"
+                              f"GST Registration No.: {data['seller_gst']}", styles['Normal']))
+
+    elements.append(Paragraph(f"<b>Invoice Details:</b><br/>"
+                              f"Invoice No.: {data['invoice_no']}<br/>"
+                              f"Invoice Date: {data['invoice_date']}<br/>"
+                              f"Order No.: {data['order_no']}<br/>"
+                              f"Order Date: {data['order_date']}<br/>"
+                              f"Place of Supply: {data['place_of_supply']}<br/>"
+                              f"Place of Delivery: {data['place_of_delivery']}<br/>"
+                              f"Reverse Charge: {data['reverse_charge']}", styles['Normal']))
+    
+    # Billing and Shipping Details
+    elements.append(Paragraph(f"<b>Billing Details:</b> {data['billing_name']}<br/>"
+                              f"{data['billing_address']}<br/>"
+                              f"{data['billing_city']}, {data['billing_state']} - {data['billing_pincode']}<br/>"
+                              f"State/UT Code: {data['billing_state_code']}", styles['Normal']))
+    
+    elements.append(Paragraph(f"<b>Shipping Details:</b> {data['shipping_name']}<br/>"
+                              f"{data['shipping_address']}<br/>"
+                              f"{data['shipping_city']}, {data['shipping_state']} - {data['shipping_pincode']}<br/>"
+                              f"State/UT Code: {data['shipping_state_code']}", styles['Normal']))
+    
+    # Item Details Table
+    item_data = [['Description', 'Unit Price', 'Quantity', 'Discount', 'Net Amount', 'Tax Rate', 'Tax Type', 'Tax Amount', 'Total Amount']]
+    total_net_amount = 0
+    total_tax_amount = 0
+    for item in data['items']:
+        net_amount = item['unit_price'] * item['quantity'] - item['discount']
+        tax_rate = item['tax_rate'] / 100
+        if data['place_of_supply'] == data['place_of_delivery']:
+            cgst = sgst = net_amount * tax_rate / 2
+            igst = 0
+            tax_type = f"CGST ({item['tax_rate']/2}%) & SGST ({item['tax_rate']/2}%)"
+            tax_amount = cgst + sgst
+        else:
+            cgst = sgst = 0
+            igst = net_amount * tax_rate
+            tax_type = f"IGST ({item['tax_rate']}%)"
+            tax_amount = igst
+        total_amount = net_amount + tax_amount
+        item_data.append([item['description'], item['unit_price'], item['quantity'], item['discount'], net_amount, f"{item['tax_rate']}%", tax_type, tax_amount, total_amount])
+        total_net_amount += net_amount
+        total_tax_amount += tax_amount
+
+    item_data.append(['', '', '', '', total_net_amount, '', '', total_tax_amount, total_net_amount + total_tax_amount])
+    
+    table = Table(item_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    
+    elements.append(table)
+    
+    # Amount in words
+    elements.append(Paragraph(f"Total Amount (in words): {num2words(total_net_amount + total_tax_amount, to='currency', lang='en_IN')} only", styles['Normal']))
+    
+    # Signature
+    elements.append(Paragraph(f"For {data['seller_name']}<br/><br/><br/><br/><img src='{data['signature_image']}' width='100' height='50'/><br/>Authorised Signatory", styles['Normal']))
+    
+    # Build the PDF
+    doc.build(elements)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+# Example data
+data = {
+    'company_logo': 'path_to_logo.png',
+    'seller_name': 'Seller Company',
+    'seller_address': '1234, Seller Street',
+    'seller_city': 'Seller City',
+    'seller_state': 'Seller State',
+    'seller_pincode': '123456',
+    'seller_pan': 'ABCDE1234F',
+    'seller_gst': '22AAAAA0000A1Z5',
+    'place_of_supply': 'Some State',
+    'billing_name': 'Buyer Name',
+    'billing_address': '1234, Buyer Street',
+    'billing_city': 'Buyer City',
+    'billing_state': 'Buyer State',
+    'billing_pincode': '654321',
+    'billing_state_code': '09',
+    'shipping_name': 'Buyer Name',
+    'shipping_address': '1234, Buyer Street',
+    'shipping_city': 'Buyer City',
+    'shipping_state': 'Buyer State',
+    'shipping_pincode': '654321',
+    'shipping_state_code': '09',
+    'place_of_delivery': 'Some Other State',
+    'order_no': 'ORD123456',
+    'order_date': '2024-06-14',
+    'invoice_no': 'INV123456',
+    'invoice_date': '2024-06-15',
+    'reverse_charge': 'No',
+    'items': [
+        {'description': 'Product 1', 'unit_price': 100, 'quantity': 2, 'discount': 10, 'tax_rate': 18},
+        {'description': 'Product 2', 'unit_price': 200, 'quantity': 1, 'discount': 20, 'tax_rate': 18}
+    ],
+    'signature_image': 'path_to_signature.png'
+}
+
+pdf_buffer = generate_invoice(data)
+with open('invoice.pdf', 'wb') as f:
+    f.write(pdf_buffer.read())
